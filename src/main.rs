@@ -149,7 +149,7 @@ mod remember {
 
     if file.is_err() { return None }
 
-    for m_line in BufferedReader::new(file.unwrap()).lines() {
+    for m_line in BufferedReader::new(file.unwrap()).lines().rev() {
       if m_line.is_err() { println!("RROOJS"); break; }
       let line = m_line.unwrap();
       println!("{}", line);
