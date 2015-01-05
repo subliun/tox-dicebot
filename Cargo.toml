@@ -1,0 +1,9 @@
+[package]
+
+name = "dice_bot"
+version = "0.0.1"
+authors = ["subliun <subliunisdev@gmail.com>"]
+
+[dependencies.tox]
+
+git = "https://github.com/mahkoh/rust-tox.git"

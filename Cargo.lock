@@ -1,0 +1,12 @@
+[root]
+name = "dice_bot"
+version = "0.0.1"
+dependencies = [
+ "tox 0.1.0 (git+https://github.com/mahkoh/rust-tox.git)",
+]
+
+[[package]]
+name = "tox"
+version = "0.1.0"
+source = "git+https://github.com/mahkoh/rust-tox.git#5ba6f62744715deea56f7abf1cc47c750442db28"
+
