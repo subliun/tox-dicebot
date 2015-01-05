@@ -93,12 +93,72 @@ fn main() {
                 tox.group_message_send(group, reply.to_string());
                 std::io::timer::sleep(std::time::duration::Duration::milliseconds(200));
               }
+            } else if msg.starts_with("^remember") {
+              let result = remember::remember_assoc(msg.replace("^remember", ""));
+              if result != "" {
+                tox.group_message_send(group, result);
+              }
+            } else if msg.starts_with("^") {
+              let result = remember::retrieve_assoc(msg.replace("^", ""));
+              if result != None {
+                tox.group_message_send(group, result.unwrap());
+              }
             }
           },
 
           _ => { }
       }
     }
+  }
+}
+
+mod remember {
+  use std::io::*;
+  use std::io::fs::PathExtensions;
+
+  static filename: &'static str = "table.txt";
+
+  pub fn remember_assoc(message: String) -> String {
+    let processed_message = message.replace("\n", "").replace("^", "").trim().to_string() + "\n";
+    let path = Path::new(filename);
+
+    let mut file;
+    if path.exists() {
+      file = File::open_mode(&path, Append, Write)
+    } else {
+      file = File::open_mode(&path, Truncate, Write)
+    }
+
+    if !processed_message.contains(":") {
+      return "Error. Could not find : in remember command.".to_string()
+    }
+
+    file.write(processed_message.into_bytes().as_slice());
+    return String::new()
+  }
+
+  pub fn retrieve_assoc(message: String) -> Option<String> {
+    let file;
+    let path = Path::new(filename);
+
+    if path.exists() {
+      file = File::open(&path);
+    }else {
+      return None
+    }
+
+    if file.is_err() { return None }
+
+    for m_line in BufferedReader::new(file.unwrap()).lines() {
+      if m_line.is_err() { println!("RROOJS"); break; }
+      let line = m_line.unwrap();
+      println!("{}", line);
+      if line.splitn(1, ':').nth(0).unwrap() == message {
+        return Some(line.splitn(1, ':').nth(1).unwrap().replace("\n", "").to_string());
+      }
+    }
+
+    return None
   }
 }
 
