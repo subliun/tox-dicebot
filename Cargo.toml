@@ -6,4 +6,4 @@ authors = ["subliun <subliunisdev@gmail.com>"]
 
 [dependencies.tox]
 
-git = "https://github.com/mahkoh/rust-tox.git"
+git = "https://github.com/subliun/rust-tox.git"

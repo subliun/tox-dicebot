@@ -16,11 +16,6 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#![feature(phase,globs)]
-
-extern crate regex;
-#[phase(plugin)]
-extern crate regex_macros;
 extern crate tox;
 
 use tox::core::*;
@@ -44,10 +39,10 @@ fn main() {
 
   let bootstrap_key = BOOTSTRAP_KEY.parse().unwrap();
   tox.bootstrap_from_address(BOOTSTRAP_IP.to_string(), BOOTSTRAP_PORT,
-      box bootstrap_key).unwrap();
+      Box::new(bootstrap_key)).unwrap();
 
   let groupchat_addr = GROUPCHAT_ADDR.parse().unwrap();
-  let groupbot_id = tox.add_friend(box groupchat_addr, "Down with groupbot! Glory to Ukraine!".to_string()).ok().unwrap();
+  let groupbot_id = tox.add_friend(Box::new(groupchat_addr), "Down with groupbot! Glory to Ukraine!".to_string()).ok().unwrap();
 
   let sel = Select::new();
   let mut tox_rx = sel.handle(tox.events());
@@ -68,8 +63,12 @@ fn main() {
           }
         },
 
+        FriendRequest(friend_id, msg) => {
+          tox.add_friend_norequest(friend_id);
+        },
+
           GroupInvite(id, ty, data) => {
-            println!("GroupInvite(_, {}, _) ", ty);
+            println!("GroupInvite(_, {:?}, _) ", ty);
             match ty {
               GroupchatType::Text => tox.join_groupchat(id, data).unwrap(),
                 GroupchatType::Av => av.join_av_groupchat(id, data).unwrap(),
@@ -78,7 +77,10 @@ fn main() {
 
           GroupMessage(group, peer, msg) => {
             println!("{}: {}", tox.group_peername(group, peer).unwrap(), msg);
-            if msg.starts_with("^dice") || msg.starts_with("^roll") {
+
+            if msg.starts_with("^diceid") {
+              //tox.group_message_send(group, "My Tox ID is: ".to_string() + tox.get_address().to_string().as_slice());
+            } else if msg.starts_with("^dice") || msg.starts_with("^roll") {
               let user_name = tox.group_peername(group, peer).unwrap();
               for reply in tox::util::split_message(dice::get_response_dice_roll(msg, user_name).as_slice()).iter() {
                 tox.group_message_send(group, reply.to_string());
@@ -93,8 +95,15 @@ fn main() {
                 tox.group_message_send(group, reply.to_string());
                 std::io::timer::sleep(std::time::duration::Duration::milliseconds(200));
               }
-            } else if msg.starts_with("^question"){
+            } else if msg.starts_with("^question") {
               tox.group_message_send(group, question::retrieve_answer(msg.replace("^question", "").trim().to_string()));
+            } else if msg.starts_with("^youtube") {
+              //tox.group_message_send(group, "NOT YET IMPLEMENTED".to_string());
+              //youtube::play_audio_file(&av, group, "downloaded_videos/az.pcm".to_string())
+            } else if msg.starts_with("^endchat") {
+
+            } else if msg.starts_with("^chat") {
+
             } else if msg.starts_with("^remember") {
               let result = remember::remember_assoc(msg.replace("^remember", ""));
               if result != "" {
@@ -113,13 +122,161 @@ fn main() {
     }
   }
 }
+/*
+mod chat {
+    use std::io::Command;
+    use std::io::process::Process;
+
+    struct Chatbot{
+      python_process: &'static Option<Process>,
+      chatting: bool,
+    }
+
+    impl Chatbot {
+      fn new() -> Chatbot {
+        Chatbot { python_process: &None, chatting: false }
+      }
+
+      fn start_chatting(&mut self) -> String {
+        if (self.chatting) { return "I'm already chatting with you silly. :)".to_string() }
+
+        let m_python = Command::new("python").spawn();
+
+        if m_python.is_err() {
+          return "Internal error. Could not start chatting :(".to_string();
+        }
+
+        self.python_process = &Some(m_python.unwrap());
+        self.python_process.unwrap().stdin.unwrap()
+        .write(
+          b"from chatterbotapi import ChatterBotFactory, ChatterBotType\n
+          factory = ChatterBotFactory()\n
+          bot1 = factory.create(ChatterBotType.CLEVERBOT)\n
+          bot1session = bot1.create_session()\n"
+        );
+        //>>> bot1session.think("Hi") "
+
+        self.chatting = true;
+        return "You are now chatting with DiceBot! He will respond to messages starting with \"!\"".to_string()
+      }
+
+      fn get_response(&mut self, input: String) -> String {
+          if (!self.chatting) { return "I'm not chatting with you.".to_string() }
+          self.python_process.unwrap().stdin.unwrap()
+          .write_line(("bot1session.think(\"".to_string() + sanitize(input).as_slice() + "\")").as_slice());
+          return self.python_process.unwrap().stdout.unwrap().read_to_string().unwrap().clone()
+      }
+
+      fn stop_chatting(&mut self) {
+        if (self.chatting) {
+          self.python_process.unwrap().stdin.unwrap().write_line("exit()");
+          drop(self.python_process);
+          self.python_process = &None;
+        }
+      }
+    }
+
+    fn sanitize(input: String) -> String {
+      input.replace(".", "").replace("/", "").replace("(", "").replace(";", "")
+           .replace("\\", "").replace("!", "").replace("\"", "").replace(";", "")
+    }
+}
+
+mod youtube {
+  extern crate serialize;
+
+  use tox::av::*;
+  use std::io::{Command, BufferedReader, File};
+  use std::rand;
+
+  use self::serialize::json;
+  use std::collections::BTreeMap;
+  use std::time::duration::Duration;
+  use std::io::fs::PathExtensions;
+  use std::io::timer;
+  use std::time::duration;
+  static STORAGE_FOLDER: &'static str = "downloaded_videos/";
+
+  struct Metadata {
+    path: String,
+    title: String,
+    duration: String,
+  }
+
+  pub fn play_audio_file(tox_av: &Av, group_id: i32, file: String) {
+    let file = File::open(&Path::new(file));
+    let mut reader = BufferedReader::new(file);
+
+    let sample_rate = 48000u32;
+    let channels = 1u8;
+    let samples = 960;
+
+    loop {
+      let mut buf: Vec<i16> = vec!();
+      for i in range(0, samples) {
+        buf.push(reader.read_le_i16().unwrap());
+      }
+
+      tox_av.group_send_audio(group_id, AudioBit { pcm: buf, samples: samples, channels: channels, sample_rate: sample_rate });
+      //timer::sleep(duration::Duration::milliseconds(20));
+    }
+  }
+
+  ///Downloads a video and returns its metadata
+  ///Returns an error and an error message on failure
+  pub fn download_video(video_url: String) -> Result<Metadata, String> {
+    if !Path::new(STORAGE_FOLDER).exists() {
+        Command::new("mkdir").arg(STORAGE_FOLDER).output();
+    }
+
+    let m_metadata = get_metadata(video_url.clone());
+    if m_metadata.is_none() { return Err("Error. Could not fetch metadata.".to_string() )}
+
+    let metadata = m_metadata.unwrap();
+    let download_process = Command::new("youtube-dl")
+                           .arg(video_url.as_slice()).arg("-x")
+                           .arg("-o").arg(metadata.path.clone()).output();
+    let convert_process = Command::new("avconv").arg("-i")
+                          .arg(metadata.path.clone()
+                               .slice_to(metadata.path.clone().rfind('.').unwrap()).to_string() + ".m4a")
+    .arg("-b:a").arg("48k").arg("-ac").arg("1")
+    .arg("-f").arg("s16le").arg("-acodec").arg("pcm_s16le").arg(metadata.path.clone() + ".pcm").output();
+
+    //if !download_process.unwrap().status.success() || !convert_process.unwrap().status.success() {
+      return Err("Error. Could not find video. Please make sure you entered a valid URL.".to_string()
+      + "err1: " + String::from_utf8_lossy(download_process.unwrap().error.as_slice()).as_slice()
+      + "\nerr2: " + String::from_utf8_lossy(convert_process.unwrap().error.as_slice()).as_slice())
+//    }
+
+    //return Ok(metadata)
+  }
+
+  fn get_metadata(url: String) -> Option<Metadata> {
+    let metadata_process = Command::new("youtube-dl").arg(url.as_slice()).arg("--get-filename")
+    .arg("--get-duration").arg("--get-title").output().unwrap();
+    let mut split_metadata: Vec<String> = vec!();
+    for line in String::from_utf8_lossy(metadata_process.output.as_slice()).lines(){
+        split_metadata.push(line.to_string());
+    }
+
+    Some(Metadata {path: STORAGE_FOLDER.to_string() + split_metadata[1].as_slice(),
+                  title: split_metadata[0].clone(), duration: split_metadata[2].clone()})
+  }
+
+  pub fn playing_message_from_metadata(metadata: &Metadata) -> String {
+    "Now playing ".to_string() + metadata.title.as_slice() +
+    "[" + metadata.duration.as_slice() + "]"
+  }
+}*/
 
 mod question {
-  use std::hash;
+  use std::rand;
   use std::ascii::AsciiExt;
 
   pub fn retrieve_answer(question: String) -> String {
-    let question_words = ["do", "did", "does", "am", "is", "are", "has", "have", "was", "were", "will", "can", "could"];
+    let question_words = ["do", "did", "does", "am", "is", "are", "has",
+                          "have", "was", "were", "will", "can",
+                          "could", "shall", "should"];
     let mut good_question = false;
     for word in question_words.iter() {
         if question.as_slice().to_ascii_lowercase().to_string().starts_with(*word) {
@@ -130,9 +287,7 @@ mod question {
 
     if !good_question { return "That's not a good question.".to_string() }
 
-    let hash_result = hash::hash(question.as_slice()) % 4;
-    println!("{}", hash_result);
-    match hash_result {
+    match rand::random::<u32>() % 4 {
       0 => "Yes.",
       1 => "No.",
       2 => "Maybe.",
@@ -178,16 +333,16 @@ mod remember {
 
     if file.is_err() { return None }
 
+    let mut result = None;
     for m_line in BufferedReader::new(file.unwrap()).lines() {
       if m_line.is_err() { break; }
       let line = m_line.unwrap();
-      println!("{}", line);
       if line.splitn(1, ':').nth(0).unwrap() == message {
-        return Some(line.splitn(1, ':').nth(1).unwrap().replace("\n", "").to_string());
+        result = Some(line.splitn(1, ':').nth(1).unwrap().replace("\n", "").to_string());
       }
     }
 
-    return None
+    return result
   }
 }
 
@@ -218,7 +373,7 @@ mod dice {
     let roll_range;
     if param.contains("d") {
       let d_location = param.find('d').unwrap();
-      times = param.slice_to(d_location).replace("d", "").parse::<uint>().unwrap_or(1);
+      times = param.slice_to(d_location).replace("d", "").parse::<u32>().unwrap_or(1);
       if times > 500 {
         return "Invalid request. You tried to roll too many times. My robot arms can only take so much. ;_;'".to_string()
       }
@@ -268,7 +423,7 @@ mod dice {
 
   fn add_formatting(roll: u64) -> String {
     let die_face: String = match get_die_face(roll) {
-      Some(face) => " ".to_string() + String::from_char(1, face).as_slice(),
+      Some(face) => " ".to_string() + face.to_string().as_slice(),
         None => "".to_string(),
     };
 
@@ -328,14 +483,14 @@ mod zalgo {
   pub fn make_zalgo(input: String) -> String {
     let mut result: String = String::new();
     for character in input.chars() {
-      result.push_str(String::from_char(1, character).as_slice());
+      result.push_str(character.to_string().as_slice());
 
       if character == ' ' {
         continue;
       }
 
-      for _ in range(0, 5 + (rand::random::<uint>() % 10)) {
-        result.push_str(String::from_char(1, *thread_rng().choose(&ZALGO_CHARS).unwrap()).as_slice());
+      for _ in range(0, 5 + (rand::random::<u32>() % 10)) {
+        result.push_str(thread_rng().choose(&ZALGO_CHARS).unwrap().to_string().as_slice());
       }
     }
 

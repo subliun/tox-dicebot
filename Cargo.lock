@@ -2,11 +2,11 @@
 name = "dice_bot"
 version = "0.0.1"
 dependencies = [
- "tox 0.1.0 (git+https://github.com/mahkoh/rust-tox.git)",
+ "tox 0.1.0 (git+https://github.com/subliun/rust-tox.git)",
 ]
 
 [[package]]
 name = "tox"
 version = "0.1.0"
-source = "git+https://github.com/mahkoh/rust-tox.git#5ba6f62744715deea56f7abf1cc47c750442db28"
+source = "git+https://github.com/subliun/rust-tox.git#4fcd7e9da699e163be62878c3c2713cc94c71df1"
 
