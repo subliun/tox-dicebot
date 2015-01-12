@@ -91,7 +91,7 @@ fn main() {
 
               tox.group_message_send(group, dice::get_response_flip(user_name));
             } else if msg.starts_with("^zalgo") {
-              for reply in tox::util::split_message(zalgo::make_zalgo(msg.replace("^zalgo", "")).as_slice()).iter() {
+              for reply in tox::util::split_message(zalgo::make_zalgo(msg.replace("^zalgo", "")).trim().as_slice()).iter() {
                 tox.group_message_send(group, reply.to_string());
                 std::io::timer::sleep(std::time::duration::Duration::milliseconds(200));
               }
@@ -100,10 +100,12 @@ fn main() {
             } else if msg.starts_with("^youtube") {
               //tox.group_message_send(group, "NOT YET IMPLEMENTED".to_string());
               //youtube::play_audio_file(&av, group, "downloaded_videos/az.pcm".to_string())
+            } else if msg.starts_with("^fight") {
+              tox.group_message_send(group, fight::get_response_fight(msg.replace("^fight", "").trim().to_string()));
             } else if msg.starts_with("^endchat") {
-
+              //I can't code. (maybe I will be able to later?)
             } else if msg.starts_with("^chat") {
-
+              //I can't code. (maybe I will be able to later?)
             } else if msg.starts_with("^remember") {
               let result = remember::remember_assoc(msg.replace("^remember", ""));
               if result != "" {
@@ -120,6 +122,36 @@ fn main() {
           _ => { }
       }
     }
+  }
+}
+
+mod fight {
+  use std::rand;
+  use std::rand::{thread_rng, Rng};
+  use std::ascii::AsciiExt;
+
+  pub fn get_response_fight(msg: String) -> String {
+    let message = msg.to_ascii_lowercase().replace(".", "").to_string();
+    if message.contains(" me") { return "m8".to_string() }
+    if !message.contains(" vs ") { return "That's not a fight! This is a fight: ^fight person1 vs person2".to_string() }
+
+    let winner: &str;
+    let mut extra_message = "";
+    if message.contains("qtox") {
+      winner = "qtox";
+      extra_message = "qTox is better.";
+    } else if message.contains("subliun") {
+      winner = "subliun";
+      extra_message = "(subliun always wins)";
+    } else {
+      let mut fighters: Vec<&str> = vec!();
+      for fighter in message.split_str(" vs ") {
+        fighters.push(fighter);
+      }
+      winner = *thread_rng().choose(fighters.as_slice()).unwrap_or(&"A failure (that's you)");
+    }
+
+    winner.to_string() + " won the fight! " + extra_message
   }
 }
 
