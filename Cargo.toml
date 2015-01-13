@@ -7,3 +7,7 @@ authors = ["subliun <subliunisdev@gmail.com>"]
 [dependencies.tox]
 
 git = "https://github.com/subliun/rust-tox.git"
+
+[dependencies.markov]
+
+git = "https://github.com/aatxe/markov.git"

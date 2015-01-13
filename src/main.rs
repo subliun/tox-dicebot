@@ -17,11 +17,17 @@
  */
 
 extern crate tox;
+extern crate markov;
 
 use tox::core::*;
+use markov::Chain;
 
 use std::slice::SliceExt;
 use std::sync::mpsc::{Select};
+use std::io::Timer;
+use std::time::Duration;
+
+mod battle;
 
 static BOOTSTRAP_IP: &'static str = "192.254.75.102";
 static BOOTSTRAP_PORT: u16 = 33445;
@@ -52,6 +58,14 @@ fn main() {
     av_rx.add();
   }
 
+  println!("My address is: {:?}", tox.get_address());
+
+  let mut battle = battle::Battle::new();
+  let mut battle_timer = None;
+
+  let mut chain = Chain::for_strings();
+  chain.feed_file(&Path::new("markov.txt"));
+
   loop {
     sel.wait();
     while let Ok(ev) = tox.events().try_recv() {
@@ -75,8 +89,12 @@ fn main() {
             };
           },
 
-          GroupMessage(group, peer, msg) => {
+          GroupMessage(group, peer, msg) => if tox.group_peername(group, peer).unwrap() != tox.get_self_name().unwrap() {
             println!("{}: {}", tox.group_peername(group, peer).unwrap(), msg);
+
+            if msg.starts_with("^") && !msg.starts_with("^chat") {
+                tox.set_name(BOT_NAME.to_string()).unwrap();
+            }
 
             if msg.starts_with("^diceid") {
               //tox.group_message_send(group, "My Tox ID is: ".to_string() + tox.get_address().to_string().as_slice());
@@ -102,10 +120,21 @@ fn main() {
               //youtube::play_audio_file(&av, group, "downloaded_videos/az.pcm".to_string())
             } else if msg.starts_with("^fight") {
               tox.group_message_send(group, fight::get_response_fight(msg.replace("^fight", "").trim().to_string()));
+            } else if msg.starts_with("batssftle") {
+              let mut names: Vec<String> = vec!();
+              for name in tox.group_get_names(group).unwrap().into_iter() {
+                if name.is_some() {
+                  names.push(name.unwrap());
+                }
+              }
+
+              battle.start_battle(&tox, group, names);
+              battle_timer = Some(Timer::new().unwrap().oneshot(Duration::seconds(battle.duration as i64)));
             } else if msg.starts_with("^endchat") {
-              //I can't code. (maybe I will be able to later?)
+              tox.set_name("DiceBot".to_string()).unwrap();
             } else if msg.starts_with("^chat") {
-              //I can't code. (maybe I will be able to later?)
+              tox.set_name("David Cameron".to_string()).unwrap();
+              tox.group_message_send(group, chain.generate_str());
             } else if msg.starts_with("^remember") {
               let result = remember::remember_assoc(msg.replace("^remember", ""));
               if result != "" {
@@ -335,13 +364,13 @@ mod zalgo {
   use std::rand::{thread_rng, Rng};
 
   static ZALGO_CHARS: [char; 113]  = [
-    '\u{30d}', /*     Ì     */		'\u{30e}', /*     ÌŽ     */		'\u{304}', /*     Ì„     */		'\u{305}', /*     Ì…     */
+    '\u{30d}', /*     Ì     */		 '\u{30e}', /*     ÌŽ     */	 '\u{304}', /*     Ì„     */	 '\u{305}', /*     Ì…     */
     '\u{33f}', /*     Ì¿     */		'\u{311}', /*     Ì‘     */		'\u{306}', /*     Ì†     */		'\u{310}', /*     Ì     */
     '\u{352}', /*     Í’     */		'\u{357}', /*     Í—     */		'\u{351}', /*     Í‘     */		'\u{307}', /*     Ì‡     */
     '\u{308}', /*     Ìˆ     */		'\u{30a}', /*     ÌŠ     */		'\u{342}', /*     Í‚     */		'\u{343}', /*     Ì“     */
-    '\u{344}', /*     ÌˆÌ     */		'\u{34a}', /*     ÍŠ     */		'\u{34b}', /*     Í‹     */		'\u{34c}', /*     ÍŒ     */
+    '\u{344}', /*     ÌˆÌ     */	 '\u{34a}', /*     ÍŠ     */	 '\u{34b}', /*     Í‹     */	 '\u{34c}', /*     ÍŒ     */
     '\u{303}', /*     Ìƒ     */		'\u{302}', /*     Ì‚     */		'\u{30c}', /*     ÌŒ     */		'\u{350}', /*     Í     */
-    '\u{300}', /*     Ì€     */		'\u{301}', /*     Ì     */		'\u{30b}', /*     Ì‹     */		'\u{30f}', /*     Ì     */
+    '\u{300}', /*     Ì€     */		'\u{301}', /*     Ì     */		 '\u{30b}', /*     Ì‹     */	 '\u{30f}', /*     Ì     */
     '\u{312}', /*     Ì’     */		'\u{313}', /*     Ì“     */		'\u{314}', /*     Ì”     */		'\u{33d}', /*     Ì½     */
     '\u{309}', /*     Ì‰     */		'\u{363}', /*     Í£     */		'\u{364}', /*     Í¤     */		'\u{365}', /*     Í¥     */
     '\u{366}', /*     Í¦     */		'\u{367}', /*     Í§     */		'\u{368}', /*     Í¨     */		'\u{369}', /*     Í©     */
@@ -349,10 +378,10 @@ mod zalgo {
     '\u{36e}', /*     Í®     */		'\u{36f}', /*     Í¯     */		'\u{33e}', /*     Ì¾     */		'\u{35b}', /*     Í›     */
     '\u{346}', /*     Í†     */		'\u{31a}', /*     Ìš     */
     '\u{316}', /*     Ì–     */		'\u{317}', /*     Ì—     */		'\u{318}', /*     Ì˜     */		'\u{319}', /*     Ì™     */
-    '\u{31c}', /*     Ìœ     */		'\u{31d}', /*     Ì     */		 '\u{31e}', /*     Ìž     */		 '\u{31f}', /*     ÌŸ     */
+    '\u{31c}', /*     Ìœ     */		'\u{31d}', /*     Ì     */		 '\u{31e}', /*     Ìž     */	 '\u{31f}', /*     ÌŸ     */
     '\u{320}', /*     Ì      */		'\u{324}', /*     Ì¤     */		'\u{325}', /*     Ì¥     */		'\u{326}', /*     Ì¦     */
     '\u{329}', /*     Ì©     */		'\u{32a}', /*     Ìª     */		'\u{32b}', /*     Ì«     */		'\u{32c}', /*     Ì¬     */
-    '\u{32d}', /*     Ì­     */		'\u{32e}', /*     Ì®     */		'\u{32f}', /*     Ì¯     */		 '\u{330}', /*     Ì°     */
+    '\u{32d}', /*     Ì­     */		 '\u{32e}', /*     Ì®     */	 '\u{32f}', /*     Ì¯     */	 '\u{330}', /*     Ì°     */
     '\u{331}', /*     Ì±     */		'\u{332}', /*     Ì²     */		'\u{333}', /*     Ì³     */		'\u{339}', /*     Ì¹     */
     '\u{33a}', /*     Ìº     */		'\u{33b}', /*     Ì»     */		'\u{33c}', /*     Ì¼     */		'\u{345}', /*     Í…     */
     '\u{347}', /*     Í‡     */		'\u{348}', /*     Íˆ     */		'\u{349}', /*     Í‰     */		'\u{34d}', /*     Í     */
@@ -361,7 +390,7 @@ mod zalgo {
     '\u{315}', /*     Ì•     */		'\u{31b}', /*     Ì›     */		'\u{340}', /*     Ì€     */		'\u{341}', /*     Ì     */
     '\u{358}', /*     Í˜     */		'\u{321}', /*     Ì¡     */		'\u{322}', /*     Ì¢     */		'\u{327}', /*     Ì§     */
     '\u{328}', /*     Ì¨     */		'\u{334}', /*     Ì´     */		'\u{335}', /*     Ìµ     */		'\u{336}', /*     Ì¶     */
-    '\u{34f}', /*     Í     */		'\u{35c}', /*     Íœ     */		'\u{35d}', /*     Í     */		  '\u{35e}', /*     Íž     */
+    '\u{34f}', /*     Í     */		 '\u{35c}', /*     Íœ     */	 '\u{35d}', /*     Í     */		'\u{35e}', /*     Íž     */
     '\u{35f}', /*     ÍŸ     */		'\u{360}', /*     Í      */		'\u{362}', /*     Í¢     */		'\u{338}', /*     Ì¸     */
     '\u{337}', /*     Ì·     */		'\u{361}', /*     Í¡     */		'\u{489}' /*     Ò‰_     */
       ];

@@ -2,8 +2,22 @@
 name = "dice_bot"
 version = "0.0.1"
 dependencies = [
+ "markov 0.0.13 (git+https://github.com/aatxe/markov.git)",
  "tox 0.1.0 (git+https://github.com/subliun/rust-tox.git)",
 ]
+
+[[package]]
+name = "markov"
+version = "0.0.13"
+source = "git+https://github.com/aatxe/markov.git#86897f34cb043fa3bab8be0d4ba852d3fefcf583"
+dependencies = [
+ "rustc-serialize 0.2.7 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "rustc-serialize"
+version = "0.2.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "tox"
