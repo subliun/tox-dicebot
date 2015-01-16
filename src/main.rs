@@ -18,9 +18,11 @@
 
 extern crate tox;
 extern crate markov;
+extern crate time;
 
 use tox::core::*;
 use markov::Chain;
+use std::rand;
 
 use std::slice::SliceExt;
 use std::sync::mpsc::{Select};
@@ -38,6 +40,8 @@ static BOOTSTRAP_KEY: &'static str =
 static GROUPCHAT_ADDR: &'static str =
 "56A1ADE4B65B86BCD51CC73E2CD4E542179F47959FE3E0E21B4B0ACDADE51855D34D34D37CB5";
 static BOT_NAME: &'static str = "DiceBot";
+static MARKOV_NAME: &'static str = "William James Sidis";
+static MARKOV_RANDOM_CHAT_TIME: f64 = 1500f64;
 
 // consider incapsulating this into a separate entity
 fn do_msg(tox: &Tox, battle: &mut battle::Battle, chain: &mut Chain<String>, group: i32, peer: i32, msg: String) {
@@ -69,29 +73,14 @@ fn do_msg(tox: &Tox, battle: &mut battle::Battle, chain: &mut Chain<String>, gro
     "^question" => {
       tox.group_message_send(group, question::retrieve_answer(mit.next().unwrap_or("").trim().to_string()));
     },
-    "^youtube" => {
-      //tox.group_message_send(group, "NOT YET IMPLEMENTED".to_string());
-      //youtube::play_audio_file(&av, group, "downloaded_videos/az.pcm".to_string())
-    },
     "^fight" => {
       tox.group_message_send(group, fight::get_response_fight(mit.next().unwrap_or("").trim().to_string()));
     },
-    /*"batssftle" => {
-      let mut names: Vec<String> = Vec::new();
-      for name in tox.group_get_names(group).unwrap().into_iter() {
-        if name.is_some() {
-          names.push(name.unwrap());
-        }
-      }
-
-      battle.start_battle(tox, group, names);
-      //battle_timer = Some(Timer::new().unwrap().oneshot(Duration::seconds(battle.duration as i64)));
-    },*/
     "^endchat" => {
       tox.set_name("DiceBot".to_string()).unwrap();
     },
     "^chat" => {
-      tox.set_name("David Cameron".to_string()).unwrap();
+      tox.set_name(MARKOV_NAME.to_string()).unwrap();
       tox.group_message_send(group, chain.generate_str());
     },
     "^remember" => {
@@ -122,6 +111,8 @@ fn main() {
 
   let groupchat_addr = GROUPCHAT_ADDR.parse().unwrap();
   let groupbot_id = tox.add_friend(Box::new(groupchat_addr), "Down with groupbot! Glory to Ukraine!".to_string()).ok().unwrap();
+  let mut group_num = 0;
+  let mut time_since_last_markov_message = time::precise_time_s();
 
   let sel = Select::new();
   let mut tox_rx = sel.handle(tox.events());
@@ -137,10 +128,21 @@ fn main() {
   //let mut battle_timer = None;
 
   let mut chain = Chain::for_strings();
-  chain.feed_file(&Path::new("markov.txt"));
+  chain.feed_str("I know over 40 languages.");
+  chain.feed_str("I am very smart.");
+  chain.feed_str("I died alone and purposeless.");
 
   loop {
-    sel.wait();
+    std::io::timer::sleep(std::time::duration::Duration::milliseconds(50));
+
+    if time::precise_time_s() - time_since_last_markov_message > MARKOV_RANDOM_CHAT_TIME {
+      if rand::random::<u32>() % 2000 == 1 {
+        tox.set_name(MARKOV_NAME.to_string()).unwrap();
+        tox.group_message_send(group_num, chain.generate_str());
+        time_since_last_markov_message = time::precise_time_s();
+      }
+    }
+
     while let Ok(ev) = tox.events().try_recv() {
       match ev {
         StatusMessage(id, _) if id == groupbot_id => {
@@ -164,9 +166,18 @@ fn main() {
 
         GroupMessage(group, peer, msg) => if tox.group_peername(group, peer).unwrap() != tox.get_self_name().unwrap() {
           println!("{}: {}", tox.group_peername(group, peer).unwrap(), msg);
+          group_num = group;
 
           if msg.starts_with("^") && !msg.starts_with("^chat") {
               tox.set_name(BOT_NAME.to_string()).unwrap();
+          }
+
+          if !msg.starts_with("^") && msg.len() < 600 && !msg.trim().is_empty() {
+            let mut clean_message = msg.clone();
+            for name in tox.group_get_names(group).unwrap().into_iter() {
+              clean_message = clean_message.replace((name.unwrap().trim().to_string() + ":").as_slice(), "");
+            }
+            chain.feed_str(clean_message.trim().as_slice());
           }
 
           do_msg(&tox, &mut battle, &mut chain, group, peer, msg);
