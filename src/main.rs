@@ -84,7 +84,7 @@ fn do_msg(tox: &Tox, battle: &mut battle::Battle, chain: &mut Chain<String>, gro
       tox.group_message_send(group, chain.generate_str());
     },
     "^remember" => {
-      let result = remember::remember_assoc(msg.to_string());
+      let result = remember::remember_assoc(msg.replace("^remember", "").to_string());
       if result != "" {
         tox.group_message_send(group, result);
       }
