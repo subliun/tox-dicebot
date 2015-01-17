@@ -50,7 +50,7 @@ fn do_msg(tox: &Tox, battle: &mut battle::Battle, chain: &mut Chain<String>, gro
     "^diceid" => {
       //tox.group_message_send(group, "My Tox ID is: ".to_string() + tox.get_address().to_string().as_slice());
     },
-    "^dice" => {
+    "^dice" | "^roll" => {
       let user_name = tox.group_peername(group, peer).unwrap();
       let roll = dice::get_response_dice_roll(mit.next().unwrap_or(""), user_name);
       // TODO: add a `split_send` function
@@ -84,13 +84,13 @@ fn do_msg(tox: &Tox, battle: &mut battle::Battle, chain: &mut Chain<String>, gro
       tox.group_message_send(group, chain.generate_str());
     },
     "^remember" => {
-      let result = remember::remember_assoc(mit.next().unwrap_or("").to_string());
+      let result = remember::remember_assoc(msg.to_string());
       if result != "" {
         tox.group_message_send(group, result);
       }
     },
     _ if msg.starts_with("^") => {
-      let result = remember::retrieve_assoc(mit.next().unwrap_or("").to_string());
+      let result = remember::retrieve_assoc(msg.replace("^", "").to_string());
       if result != None {
         tox.group_message_send(group, result.unwrap());
       }
@@ -180,7 +180,12 @@ fn main() {
             chain.feed_str(clean_message.trim().as_slice());
           }
 
-          do_msg(&tox, &mut battle, &mut chain, group, peer, msg);
+          if msg.contains(MARKOV_NAME) {
+            tox.set_name(MARKOV_NAME.to_string()).unwrap();
+            tox.group_message_send(group, chain.generate_str());
+          } else {
+            do_msg(&tox, &mut battle, &mut chain, group, peer, msg);
+          }
         },
 
         _ => { }
