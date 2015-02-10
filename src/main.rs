@@ -40,7 +40,7 @@ static BOOTSTRAP_KEY: &'static str =
 static GROUPCHAT_ADDR: &'static str =
 "56A1ADE4B65B86BCD51CC73E2CD4E542179F47959FE3E0E21B4B0ACDADE51855D34D34D37CB5";
 static BOT_NAME: &'static str = "DiceBot";
-static MARKOV_NAME: &'static str = "William James Sidis";
+static MARKOV_NAME: &'static str = "iranjontu";
 static MARKOV_RANDOM_CHAT_TIME: f64 = 1500f64;
 
 // consider incapsulating this into a separate entity
@@ -62,6 +62,9 @@ fn do_msg(tox: &Tox, battle: &mut battle::Battle, chain: &mut Chain<String>, gro
     "^flip" => {
       let user_name = tox.group_peername(group, peer).unwrap();
       tox.group_message_send(group, dice::get_response_flip(user_name));
+    },
+    "^chance" => {
+      tox.group_message_send(group, "There is a ".to_string() + dice::chance().as_slice() + " chance.");
     },
     "^zalgo" => {
       let zalgo = zalgo::make_zalgo(mit.next().unwrap_or("").trim().to_string());
@@ -128,9 +131,7 @@ fn main() {
   //let mut battle_timer = None;
 
   let mut chain = Chain::for_strings();
-  chain.feed_str("I know over 40 languages.");
-  chain.feed_str("I am very smart.");
-  chain.feed_str("I died alone and purposeless.");
+  chain.feed_file(&Path::new("markov.txt"));
 
   loop {
     std::io::timer::sleep(std::time::duration::Duration::milliseconds(50));

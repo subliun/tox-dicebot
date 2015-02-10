@@ -88,3 +88,8 @@ fn get_die_face(number: u64) -> Option<char> {
       _ => None
   }
 }
+
+
+pub fn chance() -> String {
+  (rand::random::<u64>() % (100 + 1)).to_string() + "%"
+}
