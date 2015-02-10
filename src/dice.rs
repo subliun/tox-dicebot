@@ -34,11 +34,11 @@ pub fn get_response_dice_roll(message: &str, user_name: String) -> String {
 
   let mut roll_sum = 0;
   let mut result_builder = String::new();
-  if roll_range != None && roll_range.unwrap() > 0 {
+  if roll_range.clone().is_ok() && roll_range.clone().unwrap() > 0 {
     for i in range(0, times) {
       if i != 0 { result_builder.push_str(", ") };
       if i == times - 1 && times > 1 { result_builder.push_str("and "); }
-      let roll = roll_dice(roll_range.unwrap());
+      let roll = roll_dice(roll_range.clone().unwrap());
       roll_sum += roll;
       result_builder.push_str(add_formatting(roll).as_slice());
     }

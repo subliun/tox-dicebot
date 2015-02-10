@@ -2,39 +2,60 @@
 name = "dice_bot"
 version = "0.0.1"
 dependencies = [
- "markov 0.0.13 (git+https://github.com/aatxe/markov.git)",
- "time 0.1.12 (registry+https://github.com/rust-lang/crates.io-index)",
- "tox 0.1.0 (git+https://github.com/subliun/rust-tox.git)",
+ "markov 0.0.19 (git+https://github.com/aatxe/markov.git)",
+ "rstox 0.0.1 (git+https://github.com/suhr/rstox.git?branch=audio)",
+ "time 0.1.16 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "gcc"
-version = "0.1.4"
+version = "0.1.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
+name = "libc"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
+name = "log"
+version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "markov"
-version = "0.0.13"
-source = "git+https://github.com/aatxe/markov.git#86897f34cb043fa3bab8be0d4ba852d3fefcf583"
+version = "0.0.19"
+source = "git+https://github.com/aatxe/markov.git#da46abe5297af8cd24be7a51f9d59f4ee144b6ef"
 dependencies = [
- "rustc-serialize 0.2.7 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rand 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-serialize 0.2.12 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
+name = "rand"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "libc 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "log 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "rstox"
+version = "0.0.1"
+source = "git+https://github.com/suhr/rstox.git?branch=audio#9e2632b51041e3f1956333323278d8a70bda80e8"
+
+[[package]]
 name = "rustc-serialize"
-version = "0.2.7"
+version = "0.2.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "time"
-version = "0.1.12"
+version = "0.1.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
- "gcc 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
+ "gcc 0.1.7 (registry+https://github.com/rust-lang/crates.io-index)",
+ "libc 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
-
-[[package]]
-name = "tox"
-version = "0.1.0"
-source = "git+https://github.com/subliun/rust-tox.git#4fcd7e9da699e163be62878c3c2713cc94c71df1"
 

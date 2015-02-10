@@ -4,9 +4,10 @@ name = "dice_bot"
 version = "0.0.1"
 authors = ["subliun <subliunisdev@gmail.com>"]
 
-[dependencies.tox]
+[dependencies.rstox]
 
-git = "https://github.com/subliun/rust-tox.git"
+git = "https://github.com/suhr/rstox.git"
+branch = "audio"
 
 [dependencies.markov]
 
