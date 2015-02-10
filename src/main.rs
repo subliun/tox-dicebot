@@ -16,17 +16,20 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-extern crate tox;
+#![feature(box_syntax)]
+
+extern crate "rstox" as tox;
 extern crate markov;
 extern crate time;
 
 use tox::core::*;
+use tox::av::*;
 use markov::Chain;
 use std::rand;
 
 use std::slice::SliceExt;
 use std::sync::mpsc::{Select};
-use std::io::timer::{self, Timer};
+use std::old_io::timer::{self, Timer};
 use std::time::Duration;
 
 mod battle;
@@ -43,59 +46,93 @@ static BOT_NAME: &'static str = "DiceBot";
 static MARKOV_NAME: &'static str = "iranjontu";
 static MARKOV_RANDOM_CHAT_TIME: f64 = 1500f64;
 
+// TODO: ad-hoc. Remove when rstox implements message splitting.
+pub fn split_message(mut m: &str) -> Vec<&str> {
+    let mut ret = vec!();
+    let mut last_whitespace = false;
+    while m.len() > MAX_MESSAGE_LENGTH {
+        let mut end = 0;
+        for (i, c) in m.char_indices() {
+            if c.is_whitespace() {
+                if !last_whitespace {
+                    last_whitespace = true;
+                    end = i;
+                }
+            } else {
+                last_whitespace = false;
+            }
+            if i + c.len_utf8() > MAX_MESSAGE_LENGTH {
+                if end > 0 {
+                    ret.push(&m[..end]);
+                    m = &m[(end+m.char_at(end).len_utf8())..];
+                } else {
+                    ret.push(&m[..i]);
+                    m = &m[i..];
+                }
+                break;
+            }
+        }
+    }
+    if m.len() > 0 {
+        ret.push(m);
+    }
+    ret
+}
+
+
 // consider incapsulating this into a separate entity
-fn do_msg(tox: &Tox, battle: &mut battle::Battle, chain: &mut Chain<String>, group: i32, peer: i32, msg: String) {
+fn do_msg(tox: &mut Tox, battle: &mut battle::Battle, chain: &mut Chain<String>, group: i32, peer: i32, msg: String) {
   let mut mit = msg.splitn(1, ' ');
   match mit.next().unwrap() {
     "^diceid" => {
-      //tox.group_message_send(group, "My Tox ID is: ".to_string() + tox.get_address().to_string().as_slice());
+      //tox.group_message_send(group, "My Tox ID is: " + tox.get_address().as_slice());
     },
     "^dice" | "^roll" => {
       let user_name = tox.group_peername(group, peer).unwrap();
       let roll = dice::get_response_dice_roll(mit.next().unwrap_or(""), user_name);
       // TODO: add a `split_send` function
-      for reply in tox::util::split_message(roll.as_slice()).iter() {
-        tox.group_message_send(group, reply.to_string());
+      for reply in split_message(roll.as_slice()).iter() {
+        tox.group_message_send(group, reply);
         timer::sleep(Duration::milliseconds(500));
       }
     },
     "^flip" => {
       let user_name = tox.group_peername(group, peer).unwrap();
-      tox.group_message_send(group, dice::get_response_flip(user_name));
+      tox.group_message_send(group, &dice::get_response_flip(user_name));
     },
     "^chance" => {
       tox.group_message_send(group, "There is a ".to_string() + dice::chance().as_slice() + " chance.");
     },
     "^zalgo" => {
       let zalgo = zalgo::make_zalgo(mit.next().unwrap_or("").trim().to_string());
-      for reply in tox::util::split_message(zalgo.as_slice()).iter() {
-        tox.group_message_send(group, reply.to_string());
+      for reply in split_message(zalgo.as_slice()).iter() {
+        tox.group_message_send(group, reply);
         timer::sleep(Duration::milliseconds(200));
       }
     },
     "^question" => {
-      tox.group_message_send(group, question::retrieve_answer(mit.next().unwrap_or("").trim().to_string()));
+      tox.group_message_send(group, &question::retrieve_answer(mit.next().unwrap_or("").trim().to_string()));
     },
     "^fight" => {
-      tox.group_message_send(group, fight::get_response_fight(mit.next().unwrap_or("").trim().to_string()));
+      tox.group_message_send(group, &fight::get_response_fight(mit.next().unwrap_or("").trim().to_string()));
     },
     "^endchat" => {
-      tox.set_name("DiceBot".to_string()).unwrap();
+      tox.set_name("DiceBot").unwrap();
     },
     "^chat" => {
-      tox.set_name(MARKOV_NAME.to_string()).unwrap();
-      tox.group_message_send(group, chain.generate_str());
+      tox.set_name(MARKOV_NAME).unwrap();
+      tox.group_message_send(group, &chain.generate_str());
     },
     "^remember" => {
       let result = remember::remember_assoc(mit.next().unwrap_or("").to_string());
       if result != "" {
-        tox.group_message_send(group, result);
+        tox.group_message_send(group, &result);
       }
     },
     _ if msg.starts_with("^") => {
-      let result = remember::retrieve_assoc(msg.replace("^", "").to_string());
+      let result = remember::retrieve_assoc(msg.replace("^", ""));
       if result != None {
-        tox.group_message_send(group, result.unwrap());
+        tox.group_message_send(group, &result.unwrap());
       }
     },
     _ => {},
@@ -103,29 +140,23 @@ fn do_msg(tox: &Tox, battle: &mut battle::Battle, chain: &mut Chain<String>, gro
 }
 
 fn main() {
-  let tox = Tox::new(ToxOptions::new()).unwrap();
-  let av = tox.av(2).unwrap();
+  let (tox_cell, mut av) = ToxAv::new(Tox::new(ToxOptions::new()), 1);
+  let gr_audio = av.group_audio(box |_, _| {});
 
-  tox.set_name(BOT_NAME.to_string()).unwrap();
+  let mut tox = tox_cell.borrow_mut();
+  tox.set_name(BOT_NAME).unwrap();
 
   let bootstrap_key = BOOTSTRAP_KEY.parse().unwrap();
   tox.bootstrap_from_address(BOOTSTRAP_IP.to_string(), BOOTSTRAP_PORT,
-      Box::new(bootstrap_key)).unwrap();
+      bootstrap_key).unwrap();
 
   let groupchat_addr = GROUPCHAT_ADDR.parse().unwrap();
-  let groupbot_id = tox.add_friend(Box::new(groupchat_addr), "Down with groupbot! Glory to Ukraine!".to_string()).ok().unwrap();
+  let groupbot_id = tox.add_friend(groupchat_addr, "Down with groupbot! Glory to Ukraine!").ok().unwrap();
   let mut group_num = 0;
   let mut time_since_last_markov_message = time::precise_time_s();
 
-  let sel = Select::new();
-  let mut tox_rx = sel.handle(tox.events());
-  let mut av_rx = sel.handle(av.events());
-  unsafe {
-    tox_rx.add();
-    av_rx.add();
-  }
 
-  println!("My address is: {:?}", tox.get_address());
+  println!("My address is: {}", tox.get_address());
 
   let mut battle = battle::Battle::new();
   //let mut battle_timer = None;
@@ -134,34 +165,34 @@ fn main() {
   chain.feed_file(&Path::new("markov.txt"));
 
   loop {
-    std::io::timer::sleep(std::time::duration::Duration::milliseconds(50));
+    timer::sleep(std::time::duration::Duration::milliseconds(50));
 
     if time::precise_time_s() - time_since_last_markov_message > MARKOV_RANDOM_CHAT_TIME {
       if rand::random::<u32>() % 2000 == 1 {
-        tox.set_name(MARKOV_NAME.to_string()).unwrap();
-        tox.group_message_send(group_num, chain.generate_str());
+        tox.set_name(MARKOV_NAME).unwrap();
+        tox.group_message_send(group_num, &chain.generate_str());
         time_since_last_markov_message = time::precise_time_s();
       }
     }
 
-    while let Ok(ev) = tox.events().try_recv() {
+    for ev in tox.iter() {
       match ev {
         StatusMessage(id, _) if id == groupbot_id => {
           if tox.count_chatlist() < 1 {
-            tox.send_message(groupbot_id, "invite".to_string()).unwrap();
+            tox.send_message(groupbot_id, "invite").unwrap();
             println!("connected to groupbot");
           }
         },
 
         FriendRequest(friend_id, msg) => {
-          tox.add_friend_norequest(friend_id);
+          tox.add_friend_norequest(*friend_id);
         },
 
-        GroupInvite(id, ty, data) => {
-          println!("GroupInvite(_, {:?}, _) ", ty);
-          match ty {
-            GroupchatType::Text => tox.join_groupchat(id, data).unwrap(),
-              GroupchatType::Av => av.join_av_groupchat(id, data).unwrap(),
+        GroupInvite(id, kind, data) => {
+          println!("GroupInvite(_, {:?}, _) ", kind);
+          match kind {
+            GroupchatType::Text => tox.join_groupchat(id, &data).unwrap(),
+              GroupchatType::Av => gr_audio.join_groupchat(&mut tox, id, &data).unwrap(),
           };
         },
 
@@ -170,7 +201,7 @@ fn main() {
           group_num = group;
 
           if msg.starts_with("^") && !msg.starts_with("^chat") {
-              tox.set_name(BOT_NAME.to_string()).unwrap();
+              tox.set_name(BOT_NAME).unwrap();
           }
 
           if !msg.starts_with("^") && msg.len() < 600 && !msg.trim().is_empty() {
@@ -182,16 +213,17 @@ fn main() {
           }
 
           if msg.contains(MARKOV_NAME) {
-            tox.set_name(MARKOV_NAME.to_string()).unwrap();
-            tox.group_message_send(group, chain.generate_str());
+            tox.set_name(MARKOV_NAME).unwrap();
+            tox.group_message_send(group, &chain.generate_str());
           } else {
-            do_msg(&tox, &mut battle, &mut chain, group, peer, msg);
+            do_msg(&mut tox, &mut battle, &mut chain, group, peer, msg);
           }
         },
 
         _ => { }
       }
     }
+    tox.wait();
   }
 }
 
@@ -253,8 +285,8 @@ mod question {
 }
 
 mod remember {
-  use std::io::*;
-  use std::io::fs::PathExtensions;
+  use std::old_io::*;
+  use std::old_io::fs::PathExtensions;
 
   static filename: &'static str = "table.txt";
 

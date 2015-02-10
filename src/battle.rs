@@ -31,11 +31,11 @@ impl Battle {
     return Battle { active: false, people: people, duration: 60 }
   }
 
-  pub fn start_battle(&mut self, tox: &Tox, group_id: i32, people_names: Vec<String>) {
+  pub fn start_battle(&mut self, tox: &mut Tox, group_id: i32, people_names: Vec<String>) {
     for name in people_names.iter() {
       self.people.push(Person::new(name.clone(), 20));
     }
-    tox.group_message_send(group_id, "A battle has begun! It will go for ".to_string() + self.duration.to_string().as_slice() + " seconds. Fight!");
+    tox.group_message_send(group_id, &format!("A battle has begun! It will go for {} seconds. Fight!", self.duration));
   }
 
   pub fn get_person_by_name(&mut self, name: String) -> Option<&mut Person> {
