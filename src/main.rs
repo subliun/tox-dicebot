@@ -81,7 +81,7 @@ pub fn split_message(mut m: &str) -> Vec<&str> {
 
 
 // consider incapsulating this into a separate entity
-fn do_msg(tox: &mut Tox, battle: &mut battle::Battle, chain: &mut Chain<String>, group: i32, peer: i32, msg: String) {
+fn do_msg(tox: &mut Tox, battle: &mut battle::Battle, chain: &mut Chain<String>, group: i32, peer: i32, msg: String, last_message: String) {
   let mut mit = msg.splitn(1, ' ');
   match mit.next().unwrap() {
     "^diceid" => {
@@ -101,7 +101,7 @@ fn do_msg(tox: &mut Tox, battle: &mut battle::Battle, chain: &mut Chain<String>,
       tox.group_message_send(group, &dice::get_response_flip(user_name));
     },
     "^chance" => {
-      tox.group_message_send(group, "There is a ".to_string() + dice::chance().as_slice() + " chance.");
+      tox.group_message_send(group, ("There is a ".to_string() + dice::chance().as_slice() + " chance.".as_slice()).as_slice());
     },
     "^zalgo" => {
       let zalgo = zalgo::make_zalgo(mit.next().unwrap_or("").trim().to_string());
@@ -122,6 +122,16 @@ fn do_msg(tox: &mut Tox, battle: &mut battle::Battle, chain: &mut Chain<String>,
     "^chat" => {
       tox.set_name(MARKOV_NAME).unwrap();
       tox.group_message_send(group, &chain.generate_str());
+    },
+    "^translate" | "^tr" => {
+      let mut new_iter = mit.next().unwrap().splitn(1, ' ');
+      let lang = new_iter.next().unwrap_or("");
+      let mut to_translate = new_iter.next().unwrap_or("");
+      if to_translate == "^" {
+        to_translate = last_message.as_slice();
+      }
+      let result = &translate::get_response_translate(to_translate.to_string(), lang.to_string());
+      tox.group_message_send(group, result.trim());
     },
     "^remember" => {
       let result = remember::remember_assoc(mit.next().unwrap_or("").to_string());
@@ -153,6 +163,7 @@ fn main() {
   let groupchat_addr = GROUPCHAT_ADDR.parse().unwrap();
   let groupbot_id = tox.add_friend(groupchat_addr, "Down with groupbot! Glory to Ukraine!").ok().unwrap();
   let mut group_num = 0;
+  let mut last_message: String = String::new();
   let mut time_since_last_markov_message = time::precise_time_s();
 
 
@@ -196,7 +207,12 @@ fn main() {
           };
         },
 
-        GroupMessage(group, peer, msg) => if tox.group_peername(group, peer).unwrap() != tox.get_self_name().unwrap() {
+        GroupMessage(group, peer, msg) => {
+          if tox.group_peername(group, peer).unwrap() == tox.get_self_name().unwrap() {
+            last_message = msg.clone();
+            return
+          }
+          
           println!("{}: {}", tox.group_peername(group, peer).unwrap(), msg);
           group_num = group;
 
@@ -216,8 +232,10 @@ fn main() {
             tox.set_name(MARKOV_NAME).unwrap();
             tox.group_message_send(group, &chain.generate_str());
           } else {
-            do_msg(&mut tox, &mut battle, &mut chain, group, peer, msg);
+            do_msg(&mut tox, &mut battle, &mut chain, group, peer, msg.clone(), last_message);
           }
+
+          last_message = msg.clone();
         },
 
         _ => { }
@@ -334,4 +352,20 @@ mod remember {
   }
 }
 
+mod translate {
+  use std::old_io::Command;
+
+  pub fn get_response_translate(phrase: String, to_language: String) -> String {
+    let mut result: String = String::new();
+    for sentence in phrase.split('.') {
+      let mut process = match Command::new("python").arg("translate.py").arg("-t").arg(to_language.clone()).arg(sentence).spawn() {
+        Ok(p) => p,
+        Err(e) => return "Error: translation failed. Did you input the right args?".to_string(),
+      };
+      result = result + String::from_utf8(process.stdout.as_mut().unwrap().read_to_end().unwrap()).unwrap().as_slice();
+    }
+
+    return result;
+  }
+}
 /* vim: set ts=2 sw=2 expandtab ai: */
